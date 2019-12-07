@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+	<head>
+		<meta charset="utf-8">
+		<title>Not Kahoot</title>
+		<script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
+		<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.7.8/angular.min.js"></script>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+		<script src="https://javakid0826.github.io/Methlib-js/methlib.js"></script>
+	</head>
+	<body>
+		<canvas id="mainCanvas" width="500" height="500"></canvas>
+		<script src="client/js/script.js"></script>
+		<form id="idForm">
+			<input type="text" name="name" placeholder="Name">
+			<input type="text" name="ID" placeholder="ID"/>
+			<input type="button" onclick="bindID()" value="Connect"/>
+		</form>
+		<form id="genForm">
+			<input type="button" onclick="genID()" value="Create ID"/>
+		</form>
+	</body>
+</html>
