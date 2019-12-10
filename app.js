@@ -55,9 +55,7 @@ app.get("/", (req, res) => {
 
 //Either assign the local or CDN version of my library to the shorthand "/methlib" globally
 if(localLib){
-	app.use("/methlib", express.static(__dirname + "/../methlib-js"));
-} else {
-	app.use("/methlib", "https://javakid0826.github.io/Methlib-js");
+	app.use("https://javakid0826.github.io/Methlib-js", express.static(__dirname + "/../methlib-js"));
 }
 
 //Do the same thing with "/client" but instead of library just do the client folder where all of the juicy stuff is
