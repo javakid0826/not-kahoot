@@ -6,6 +6,7 @@ const renderOptionButtons = function(){
 	optionButtons[3].display(ctxt, "#FF0");
 
 	ctxt.font = "Bold 20px Consolas";
+	ctxt.textAlign = "center";
 	ctxt.fillStyle = "#000";
 	ctxt.fillText(currQuestion.options[0], 125, 350);
 	ctxt.fillText(currQuestion.options[1], 175, 450);
@@ -106,6 +107,7 @@ const bindID = () =>  {
 
 const answer = (answer) => {
 	console.log("I ANSWERED");
+	answered = true;
 	socket.emit("AnswerQuestion", {answer, hostID});
 }
 //endregion CLIENTFUNCS
@@ -122,6 +124,7 @@ const Socket = function(socket){
 	socket.on("AddedToGroup", addedToGroup);
 
 	socket.on("AnswerThis", (data) => {
+		answered = false;
 		currQuestion = new Question(data.name, data.question, data.options);
 		console.log(currQuestion);
 		socket.emit("HeyAThingHappend", {hostID, id});
@@ -129,7 +132,10 @@ const Socket = function(socket){
 
 	socket.on("UpdateButForPeasants", (data) => {
 		console.log("Updating");
-		renderOptionButtons();
+		clearRect(0, 0, 500, 500);
+		if(!answered){
+			renderOptionButtons();
+		}
 	});
 	//endregion CLIENTEVENTS
 
@@ -175,6 +181,9 @@ const Socket = function(socket){
 				}
 			} else if(group.state == "Results"){
 				for(let i in answerStats){
+
+					let x = 150 + i * 50
+
 					let fillColText = "";
 					if(i == 0){
 						fillColText = "#F00";
@@ -186,7 +195,16 @@ const Socket = function(socket){
 						fillColText = "#FF0";
 					}
 					ctxt.fillStyle = fillColText;
-					ctxt.fillRect(150 + i * 50, 200 - (answerStats[i] * 20), 30, answerStats[i] * 20);
+					ctxt.fillRect(x, 200 - (answerStats[i] * 20), 30, answerStats[i] * 20);
+
+					let drawChar = "X";
+
+					if(i == currQuestion.getAnswerIndex()){
+						drawChar = "\u2713";
+					}
+
+					ctxt.fillStyle = "#000";
+					ctxt.fillText(drawChar, x + 15, 230);
 				}
 			}
 			ctxt.fillStyle = "#FF0000";
@@ -224,6 +242,14 @@ const Question = function(name, question, options, answer){
 	this.options = options;
 	this.answer = answer;
 	this.name = name;
+
+	this.getAnswerIndex = () => {
+		for(let i in this.options){
+			if(this.options[i] == this.answer){
+				return i;
+			}
+		}
+	}
 }
 
 const Player = function(id, name, answers) {
@@ -379,7 +405,7 @@ for(let i = 0; i < 2; i++){
 //endregion CONSTANTS
 
 //region VARIABLES
-let id, hostID, groupID;
+let id, hostID, groupID, answered;
 let group, currQuestion;
 let answerStats = [0, 0, 0, 0];
 //endregion VARIABLES
@@ -390,7 +416,7 @@ ctxt.textAlign = "center";
 let advanceButton = new Button(advance);
 
 $("document").ready(function(){
-	genID();
+	//genID();
 });
 
 //Binding the click event on the canv
