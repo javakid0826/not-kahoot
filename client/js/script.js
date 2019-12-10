@@ -132,7 +132,7 @@ const Socket = function(socket){
 
 	socket.on("UpdateButForPeasants", (data) => {
 		console.log("Updating");
-		clearRect(0, 0, 500, 500);
+		ctxt.clearRect(0, 0, 500, 500);
 		if(!answered){
 			renderOptionButtons();
 		}
