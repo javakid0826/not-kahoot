@@ -1,73 +1,157 @@
+//region REQUIRES
 const express = require("express");
 const app = express();
 const server = require("http").Server(app);
+//endregion REQUIRES
 
+//region CONSTANTS
+//Whether or not to use the local version of my library or the github pages one
+const localLib = false;
+
+//Either its going to be the port heroku makes us use or it is going to be 2000
 const PORT = process.env.PORT || 2000;
+//endregion CONSTANTS
 
-server.listen(PORT);
-console.log("server started on port " + PORT);
-
-app.get("/", (req, res) => {
-	res.sendFile(__dirname + "/client/index.html");
-});
-
-app.use("/client", express.static(__dirname + "/client"));
-
-let SOCKET_LIST = [];
-
-let HOSTS = [];
-
-const io = require("socket.io")(server, {});
-
-io.sockets.on("connection", (socket) => {
-	socket.id = SOCKET_LIST.length;
-	SOCKET_LIST[socket.id] = socket;
-
-	console.log("socket connection");
-
-	socket.on("hello", (data) => {
-		console.log("HI");
-	});
-
-	socket.on("disconnect", () => {
-		delete SOCKET_LIST[socket.id];
-	});
-
-	socket.on("connectToGroup", (data) => {
-		let hostID = connectToGroup(data.id);
-		if(hostID != false){
-			delete HOSTS[socket.id];
-			let userObj = {name: data.name, id: socket.id};
-			HOSTS[hostID].emit("userConnected", userObj);
-			socket.emit("connectedToGroup", {id: data.id, hostID});
+//region HELPERFUNCS
+const findHost = (id) => {
+	for(let i in HOSTS){
+		if(i == id){
+			return HOSTS[i].groupID;
 		}
-	});
+	}
+	return -1;
+}
 
-	socket.on("createGroup", () => {
-		socket.groupID = HOSTS.length;
-		HOSTS[socket.id] = socket;
-		socket.emit("createdGroup", {id: socket.groupID});
-	});
-
-	socket.on("updatePlayers", (data) => {
-		for(let i in data.players){
-			SOCKET_LIST[data.players[i].id].emit("YELL");
-		}
-	});
-});
-
-function connectToGroup(id){
+const connectToGroup = (id) => {
 	for(let i in HOSTS){
 		if(HOSTS[i].groupID == id){
 			return i;
 		}
 	}
-	return false;
+	return -1;
+}
+//endregion HELPERFUNCS
+
+//region VARIABLES
+//All of the connected sockets
+let SOCKET_LIST = [];
+
+//All of the clients that are connected that are assigned as hosts
+let HOSTS = [];
+//endregion VARIABLES
+
+//region SETTING_UP_THE_SERVER
+//Actually use the damn port
+server.listen(PORT);
+
+//Hey it worked let me know
+console.log("server started on port " + PORT);
+
+//When you try to get the default path (/)
+app.get("/", (req, res) => {
+	//Just give 'em the freakin index.html file don't worry about it
+	res.sendFile(__dirname + "/client/index.html");
+});
+
+//Either assign the local or CDN version of my library to the shorthand "/methlib" globally
+if(localLib){
+	app.use("/methlib", express.static(__dirname + "/../methlib-js"));
+} else {
+	app.use("/methlib", "https://javakid0826.github.io/Methlib-js");
 }
 
+//Do the same thing with "/client" but instead of library just do the client folder where all of the juicy stuff is
+app.use("/client", express.static(__dirname + "/client"));
+//endregion SETTING_UP_THE_SERVER
+
+const io = require("socket.io")(server, {});
+
+//region SOCKETSHIT
+//When the socket first connects
+io.sockets.on("connection", (socket) => {
+	//region SETUP
+	//Make the ID equal to the length of the array of sockets so we don't get any duplicates
+	socket.id = SOCKET_LIST.length;
+	socket.name = "";
+	SOCKET_LIST[socket.id] = socket;
+
+	console.log("socket connection");
+
+	//Tell the socket what its new ID is
+	socket.emit("ID", {id: socket.id});
+	//endregion SETUP
+
+	//region GLOBALEVENTS
+	//When a socket disconnects remove it from the array
+	socket.on("disconnect", () => {
+		delete SOCKET_LIST[socket.id];
+	});
+	//endregion GLOBALEVENTS
+
+	//Events Coming From Hosts
+	//region HOSTEVENTS
+	//When someone tries to make a group
+	socket.on("MakeAGroup", () => {
+		socket.groupID = HOSTS.length;
+		HOSTS[socket.groupID] = socket;
+		socket.emit("YouMadeAGroup", {id: socket.groupID});
+	});
+
+	//When the host tells us to go update the players aswell (because socket.io is stupid and the host can't do it directly)
+	socket.on("updatePlayers", (data) => {
+		for(let i of data.sendTo){
+			SOCKET_LIST[i].emit("UpdateButForPeasants");
+		}
+	});
+
+	//When the host generates a question send it to all the players
+	socket.on("Ask", (data) => {
+		console.log(data);
+		for(let index of data.sendTo){
+			SOCKET_LIST[index].emit("AnswerThis", {name: data.name, question: data.question, options: data.options});
+		}
+	});
+	//endregion HOSTEVENTS
+
+	//Events Coming From Clients
+	//region CLIENTEVENTS
+	//When a client tries to connect to a group
+	socket.on("ConnectToGroup", (data) => {
+		console.log(data);
+		let hostID = connectToGroup(data.id);
+		if(hostID != -1){
+			if(socket.groupID != undefined){
+				delete HOSTS[socket.groupID];
+			}
+			SOCKET_LIST[socket.id].name = data.name;
+			socket.emit("AddedToGroup", {id: data.id, hostID});
+		}
+	});
+
+	//When a client finishes answering the questionnare
+	socket.on("answered", (data) => {
+		console.log(data);
+		console.log(HOSTS.map(host => host.groupID));
+		let hostID = findHost(data.hostID);
+		console.log(hostID);
+		if(hostID != -1){
+			let userObj = {name: SOCKET_LIST[data.id].name, id: data.id, answers: data.answers};
+			console.log(userObj);
+			HOSTS[hostID].emit("DipshitDetected", userObj);
+		}
+	});
+
+	//When a client answers a question send the answer back to the host
+	socket.on("AnswerQuestion", (data) => {
+		HOSTS[data.hostID].emit("HeySomeoneAnswered", {answer: data.answer});
+	})
+	//endregion CLIENTEVENTS
+});
+//endregion SOCKETSHIT
+
 setInterval(function(){
-	for(let i in SOCKET_LIST){
-		let socket = SOCKET_LIST[i];
+	for(let i in HOSTS){
+		let socket = HOSTS[i];
 		socket.emit("update", {id: socket.id});
 	}
 }, 1000/60)

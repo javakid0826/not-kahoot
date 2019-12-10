@@ -4,9 +4,11 @@
 	"description": "",
 	"main": "app.js",
 	"scripts": {
-		"start": "npx nodemon app.js"
+		"start": "node app.js",
+		"test": "npx nodemon app.js"
 	},
 	"dependencies": {
+		"bluebird": "^3.7.2",
 		"express": "^4.17.1",
 		"socket.io": "^2.3.0"
 	},
