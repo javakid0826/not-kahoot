@@ -34,7 +34,7 @@ const madeGroup = (data) => {
 
 const newPlayer = (data) => {
 	console.log("HEY WE GOT ANOTHER ONE");
-	console.log(data);
+	console.log(data.name);
 	group.addPlayer(data.id, data.name, data.answers);
 }
 
@@ -46,6 +46,20 @@ const advance = () => {
 
 const genID = () => {
 	socket.emit("MakeAGroup");
+}
+
+const removeUser = (name) => {
+	for(let user of group.players){
+		if(user.name == user){
+			socket.emit("YEET", user.id);
+		}
+	}
+}
+
+const removeAllUsers = () => {
+	for(let user of group.players){
+		socket.emit("YEET", user.id);
+	}
 }
 //endregion HOSTFUNCS
 
@@ -218,7 +232,7 @@ const Socket = function(socket){
 	socket.on("YouMadeAGroup", madeGroup);
 
 	//When a new user joins
-	socket.on("DipshitDetected", newPlayer);
+	socket.on("UserDetected", newPlayer);
 
 	socket.on("HeySomeoneAnswered", (data) => {
 		console.log(data);

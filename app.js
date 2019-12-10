@@ -41,7 +41,7 @@ let HOSTS = [];
 //endregion VARIABLES
 
 //region SETTING_UP_THE_SERVER
-//Actually use the damn port
+//Actually use the port
 server.listen(PORT);
 
 //Hey it worked let me know
@@ -49,7 +49,7 @@ console.log("server started on port " + PORT);
 
 //When you try to get the default path (/)
 app.get("/", (req, res) => {
-	//Just give 'em the freakin index.html file don't worry about it
+	//Just give 'em the index.html file don't worry about it
 	res.sendFile(__dirname + "/client/index.html");
 });
 
@@ -64,7 +64,7 @@ app.use("/client", express.static(__dirname + "/client"));
 
 const io = require("socket.io")(server, {});
 
-//region SOCKETSHIT
+//region SOCKETSTUFF
 //When the socket first connects
 io.sockets.on("connection", (socket) => {
 	//region SETUP
@@ -96,18 +96,22 @@ io.sockets.on("connection", (socket) => {
 	});
 
 	//When the host tells us to go update the players aswell (because socket.io is stupid and the host can't do it directly)
-	socket.on("updatePlayers", (data) => {
+	socket.on("updatePlayers", data => {
 		for(let i of data.sendTo){
 			SOCKET_LIST[i].emit("UpdateButForPeasants");
 		}
 	});
 
 	//When the host generates a question send it to all the players
-	socket.on("Ask", (data) => {
+	socket.on("Ask", data => {
 		console.log(data);
 		for(let index of data.sendTo){
 			SOCKET_LIST[index].emit("AnswerThis", {name: data.name, question: data.question, options: data.options});
 		}
+	});
+
+	socket.on("YEET", id => {
+		SOCKET_LIST[id].disconnect();
 	});
 	//endregion HOSTEVENTS
 
@@ -135,7 +139,7 @@ io.sockets.on("connection", (socket) => {
 		if(hostID != -1){
 			let userObj = {name: SOCKET_LIST[data.id].name, id: data.id, answers: data.answers};
 			console.log(userObj);
-			HOSTS[hostID].emit("DipshitDetected", userObj);
+			HOSTS[hostID].emit("UserDetected", userObj);
 		}
 	});
 
@@ -145,7 +149,7 @@ io.sockets.on("connection", (socket) => {
 	})
 	//endregion CLIENTEVENTS
 });
-//endregion SOCKETSHIT
+//endregion SOCKETSTUFF
 
 setInterval(function(){
 	for(let i in HOSTS){
