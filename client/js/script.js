@@ -1,3 +1,5 @@
+const debug = false;
+
 //region HELPERFUNCS
 const renderOptionButtons = function(){
 	optionButtons[0].display(ctxt, "#F00");
@@ -30,11 +32,14 @@ const madeGroup = (data) => {
 	hostID = -1;
 	groupID = data.id;
 	group = new Group(groupID);
+	if(debug){
+		addTestPlayers();
+	}
 }
 
 const newPlayer = (data) => {
 	console.log("HEY WE GOT ANOTHER ONE");
-	console.log(data.name);
+	console.log(data);
 	group.addPlayer(data.id, data.name, data.answers);
 }
 
@@ -50,7 +55,7 @@ const genID = () => {
 
 const removeUser = (name) => {
 	for(let user of group.players){
-		if(user.name == user){
+		if(user.name == name){
 			socket.emit("YEET", user.id);
 		}
 	}
@@ -98,8 +103,10 @@ const addedToGroup = (data) => {
 
 	form.appendChild(submitButton);
 
-	canv.style.display = "none";
-	qDiv.appendChild(form);
+	if(!debug){
+		canv.style.display = "none";
+		qDiv.appendChild(form);
+	}
 }
 
 const getAnswers = () => {
@@ -116,7 +123,9 @@ const bindID = () =>  {
 	let name = form[0].value || "Ben";
 	let hostID = form[1].value || 0;
 	socket.emit("ConnectToGroup", {id: hostID, name});
-	//socket.emit("answered", {hostID, name, answers: [0, 0, 0, 0, 0, 0], id});
+	if(debug){
+		socket.emit("answered", {hostID, name, answers: [0, 0, 0, 0, 0, 0], id});
+	}
 }
 
 const answer = (answer) => {
@@ -127,7 +136,9 @@ const answer = (answer) => {
 //endregion CLIENTFUNCS
 
 //region CLASSES
-const Socket = function(socket){
+const Socket = function(socket, isTest = false){
+	this.isTestPlayer = isTest;
+
 	//region GLOBALEVENTS
 	socket.on("ID", (data) => {
 		id = data.id;
@@ -138,24 +149,33 @@ const Socket = function(socket){
 	socket.on("AddedToGroup", addedToGroup);
 
 	socket.on("AnswerThis", (data) => {
-		answered = false;
-		currQuestion = new Question(data.name, data.question, data.options);
-		console.log(currQuestion);
-		socket.emit("HeyAThingHappend", {hostID, id});
+		if(!this.isTestPlayer){
+			answered = false;
+			currQuestion = new Question(data.name, data.question, data.options);
+			console.log(currQuestion);
+			socket.emit("HeyAThingHappend", {hostID, id});
+		}
 	});
 
 	socket.on("UpdateButForPeasants", (data) => {
-		console.log("Updating");
-		ctxt.clearRect(0, 0, 500, 500);
-		if(!answered){
-			renderOptionButtons();
+		if(debug){
+			console.log("ClientUpdating");
+		}
+		if(!this.isTestPlayer){
+			ctxt.clearRect(0, 0, 500, 500);
+			if(!answered){
+				renderOptionButtons();
+			}
 		}
 	});
 	//endregion CLIENTEVENTS
 
 	//region HOSTEVENTS
 	//Main update event
-	socket.on("update", (data) => {
+	socket.on("update", data => {
+		if(debug){
+			console.log("HostUpdating");
+		}
 		id = data.id;
 		ctxt.clearRect(0, 0, 500, 500);
 		try {
@@ -234,10 +254,17 @@ const Socket = function(socket){
 	//When a new user joins
 	socket.on("UserDetected", newPlayer);
 
-	socket.on("HeySomeoneAnswered", (data) => {
-		console.log(data);
+	socket.on("HeySomeoneAnswered", data => {
+		if(debug){
+			console.log(data);
+		}
+		usersAnswered++;
 		answerStats[data.answer]++;
-	})
+	});
+
+	socket.on("WeLostOne", data => {
+		group.removeUser(data.id);
+	});
 	//endregion HOSTEVENTS
 
 	this.on = (channel, func) => {
@@ -281,10 +308,19 @@ const Group = function(id) {
 		this.players.push(new Player(id, name, answers));
 	}
 
+	this.removeUser = (id) => {
+		for(let i in this.players){
+			if(this.players[i].id == id){
+				this.players.splice(i, 1);
+			}
+		}
+	}
+
 	this.stateStep = () => {
 		switch(this.state){
 			case "AddingPlayers":
 			case "Results":
+				usersAnswered = 0;
 				answerStats = [0, 0, 0, 0];
 				this.state = "Asking";
 				this.generateQuestion();
@@ -328,10 +364,9 @@ const Group = function(id) {
 
 		socket.emit("Ask", packet);
 
-		console.log(currQuestion.name);
-		console.log(currQuestion.question);
-		console.log(currQuestion.options);
-		console.log(currQuestion.answer);
+		if(debug){
+			console.log(currQuestion);
+		}
 	}
 }
 //endregion CLASSES
@@ -419,7 +454,7 @@ for(let i = 0; i < 2; i++){
 //endregion CONSTANTS
 
 //region VARIABLES
-let id, hostID, groupID, answered;
+let id, hostID, groupID, answered, usersAnswered = 0;
 let group, currQuestion;
 let answerStats = [0, 0, 0, 0];
 //endregion VARIABLES
@@ -430,7 +465,9 @@ ctxt.textAlign = "center";
 let advanceButton = new Button(advance);
 
 $("document").ready(function(){
-	//genID();
+	if(debug){
+		genID();
+	}
 });
 
 //Binding the click event on the canv
@@ -454,7 +491,8 @@ const addTestPlayers = () => {
 		for(let q in questions){
 			answerIndices[q] = Math.floor(random(questions[q].answers.length));
 		}
-		let p = new Socket(io());
+		let p = new Socket(io(), true);
+		p.emit("ConnectToGroup", {id: groupID, name: "user" + i});
 		p.on("ID", (data) => {
 			console.log(data.id);
 			newPlayer({id: data.id, name: "user" + i, answers: answerIndices});

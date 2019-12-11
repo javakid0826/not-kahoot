@@ -5,6 +5,8 @@ const server = require("http").Server(app);
 //endregion REQUIRES
 
 //region CONSTANTS
+const debug = false;
+
 //Whether or not to use the local version of my library or the github pages one
 const localLib = false;
 
@@ -82,6 +84,11 @@ io.sockets.on("connection", (socket) => {
 	//region GLOBALEVENTS
 	//When a socket disconnects remove it from the array
 	socket.on("disconnect", () => {
+		console.log(socket.connectedID);
+		if(socket.connectedID != undefined){
+			console.log(socket.id);
+			HOSTS[socket.connectedID].emit("WeLostOne", {id: socket.id});
+		}
 		delete SOCKET_LIST[socket.id];
 	});
 	//endregion GLOBALEVENTS
@@ -111,6 +118,7 @@ io.sockets.on("connection", (socket) => {
 	});
 
 	socket.on("YEET", id => {
+		console.log(id);
 		SOCKET_LIST[id].disconnect();
 	});
 	//endregion HOSTEVENTS
@@ -122,9 +130,11 @@ io.sockets.on("connection", (socket) => {
 		console.log(data);
 		let hostID = connectToGroup(data.id);
 		if(hostID != -1){
+			console.log("Connecting to group");
 			if(socket.groupID != undefined){
 				delete HOSTS[socket.groupID];
 			}
+			SOCKET_LIST[socket.id].connectedID = data.id;
 			SOCKET_LIST[socket.id].name = data.name;
 			socket.emit("AddedToGroup", {id: data.id, hostID});
 		}
