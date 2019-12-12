@@ -66,6 +66,13 @@ const removeAllUsers = () => {
 		socket.emit("YEET", user.id);
 	}
 }
+
+const snap = () => {
+	let randUsers = randomize(group.players);
+	for(let i = 0; i < randUsers.length / 2; i++){
+		socket.emit("YEET", randUsers[i].id);
+	}
+}
 //endregion HOSTFUNCS
 
 //region CLIENTFUNCS
