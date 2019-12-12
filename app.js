@@ -87,7 +87,11 @@ io.sockets.on("connection", (socket) => {
 		console.log(socket.connectedID);
 		if(socket.connectedID != undefined){
 			console.log(socket.id);
-			HOSTS[socket.connectedID].emit("WeLostOne", {id: socket.id});
+			try {
+				HOSTS[socket.connectedID].emit("WeLostOne", {id: socket.id});
+			} catch (e) {
+				console.log(e);
+			}
 		}
 		delete SOCKET_LIST[socket.id];
 	});
@@ -149,13 +153,21 @@ io.sockets.on("connection", (socket) => {
 		if(hostID != -1){
 			let userObj = {name: SOCKET_LIST[data.id].name, id: data.id, answers: data.answers};
 			console.log(userObj);
-			HOSTS[hostID].emit("UserDetected", userObj);
+			try {
+				HOSTS[hostID].emit("UserDetected", userObj);
+			} catch (e) {
+				console.log(e);
+			}
 		}
 	});
 
 	//When a client answers a question send the answer back to the host
 	socket.on("AnswerQuestion", (data) => {
-		HOSTS[data.hostID].emit("HeySomeoneAnswered", {answer: data.answer});
+		try {
+			HOSTS[data.hostID].emit("HeySomeoneAnswered", {answer: data.answer});
+		} catch (e) {
+			console.log(e);
+		}
 	})
 	//endregion CLIENTEVENTS
 });
