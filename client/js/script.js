@@ -1,5 +1,5 @@
 const debug = false;
-const ezAnswer = true;
+const ezAnswer = false;
 
 //region HELPERFUNCS
 const renderOptionButtons = function(){

@@ -9,7 +9,7 @@ const path = require("path");
 const debug = false;
 
 //Whether or not to use the local version of my library or the github pages one
-const localLib = true;
+const localLib = false;
 
 //Either its going to be the port heroku makes us use or it is going to be 2000
 const PORT = process.env.PORT || 2000;
