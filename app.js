@@ -2,29 +2,21 @@
 const express = require("express");
 const app = express();
 const server = require("http").Server(app);
+const path = require("path");
 //endregion REQUIRES
 
 //region CONSTANTS
 const debug = false;
 
 //Whether or not to use the local version of my library or the github pages one
-const localLib = false;
+const localLib = true;
 
 //Either its going to be the port heroku makes us use or it is going to be 2000
 const PORT = process.env.PORT || 2000;
 //endregion CONSTANTS
 
 //region HELPERFUNCS
-const findHost = (id) => {
-	for(let i in HOSTS){
-		if(i == id){
-			return HOSTS[i].groupID;
-		}
-	}
-	return -1;
-}
-
-const connectToGroup = (id) => {
+const findHost = id => {
 	for(let i in HOSTS){
 		if(HOSTS[i].groupID == id){
 			return i;
@@ -56,9 +48,15 @@ app.get("/", (req, res) => {
 });
 
 //Either assign the local or CDN version of my library to the shorthand "/methlib" globally
-if(localLib){
-	app.use("https://javakid0826.github.io/Methlib-js", express.static(__dirname + "/../methlib-js"));
-}
+app.all("/methlib/*", (req, res) => {
+	if(localLib){
+		console.log("Using Local");
+		res.sendFile(path.resolve(__dirname + "/../methlib-js/methlib.js"));
+	} else {
+		console.log("Using CDN");
+		res.redirect("https://javakid0826.github.io/Methlib-js/methlib.js");
+	}
+});
 
 //Do the same thing with "/client" but instead of library just do the client folder where all of the juicy stuff is
 app.use("/client", express.static(__dirname + "/client"));
@@ -68,7 +66,7 @@ const io = require("socket.io")(server, {});
 
 //region SOCKETSTUFF
 //When the socket first connects
-io.sockets.on("connection", (socket) => {
+io.sockets.on("connection", socket => {
 	//region SETUP
 	//Make the ID equal to the length of the array of sockets so we don't get any duplicates
 	socket.id = SOCKET_LIST.length;
@@ -101,9 +99,10 @@ io.sockets.on("connection", (socket) => {
 	//region HOSTEVENTS
 	//When someone tries to make a group
 	socket.on("MakeAGroup", () => {
-		socket.groupID = HOSTS.length;
-		HOSTS[socket.groupID] = socket;
-		socket.emit("YouMadeAGroup", {id: socket.groupID});
+		let groupID = HOSTS.length;
+		socket.groupID = groupID;
+		HOSTS[groupID] = socket;
+		socket.emit("YouMadeAGroup", {groupID});
 	});
 
 	//When the host tells us to go update the players aswell (because socket.io is stupid and the host can't do it directly)
@@ -130,31 +129,30 @@ io.sockets.on("connection", (socket) => {
 	//Events Coming From Clients
 	//region CLIENTEVENTS
 	//When a client tries to connect to a group
-	socket.on("ConnectToGroup", (data) => {
+	socket.on("ConnectToGroup", data => {
 		console.log(data);
-		let hostID = connectToGroup(data.id);
-		if(hostID != -1){
+		let groupID = findHost(data.groupID);
+		if(groupID != -1){
 			console.log("Connecting to group");
 			if(socket.groupID != undefined){
 				delete HOSTS[socket.groupID];
 			}
-			SOCKET_LIST[socket.id].connectedID = data.id;
+			SOCKET_LIST[socket.id].connectedID = groupID;
 			SOCKET_LIST[socket.id].name = data.name;
-			socket.emit("AddedToGroup", {id: data.id, hostID});
+			socket.emit("AddedToGroup", {groupID});
 		}
 	});
 
 	//When a client finishes answering the questionnare
-	socket.on("answered", (data) => {
+	socket.on("answered", data => {
 		console.log(data);
 		console.log(HOSTS.map(host => host.groupID));
-		let hostID = findHost(data.hostID);
-		console.log(hostID);
-		if(hostID != -1){
+		let groupID = findHost(data.groupID);
+		if(groupID != -1){
 			let userObj = {name: SOCKET_LIST[data.id].name, id: data.id, answers: data.answers};
 			console.log(userObj);
 			try {
-				HOSTS[hostID].emit("UserDetected", userObj);
+				HOSTS[groupID].emit("UserDetected", userObj);
 			} catch (e) {
 				console.log(e);
 			}
@@ -162,9 +160,9 @@ io.sockets.on("connection", (socket) => {
 	});
 
 	//When a client answers a question send the answer back to the host
-	socket.on("AnswerQuestion", (data) => {
+	socket.on("AnswerQuestion", data => {
 		try {
-			HOSTS[data.hostID].emit("HeySomeoneAnswered", {answer: data.answer});
+			HOSTS[data.groupID].emit("HeySomeoneAnswered", {answer: data.answer});
 		} catch (e) {
 			console.log(e);
 		}
@@ -176,6 +174,6 @@ io.sockets.on("connection", (socket) => {
 setInterval(function(){
 	for(let i in HOSTS){
 		let socket = HOSTS[i];
-		socket.emit("update", {id: socket.id});
+		socket.emit("update");
 	}
 }, 1000/60)

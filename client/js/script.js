@@ -1,4 +1,5 @@
 const debug = false;
+const ezAnswer = true;
 
 //region HELPERFUNCS
 const renderOptionButtons = function(){
@@ -11,8 +12,8 @@ const renderOptionButtons = function(){
 	ctxt.textAlign = "center";
 	ctxt.fillStyle = "#000";
 	ctxt.fillText(currQuestion.options[0], 125, 350);
-	ctxt.fillText(currQuestion.options[1], 175, 450);
-	ctxt.fillText(currQuestion.options[2], 325, 350);
+	ctxt.fillText(currQuestion.options[1], 125, 450);
+	ctxt.fillText(currQuestion.options[2], 375, 350);
 	ctxt.fillText(currQuestion.options[3], 375, 450);
 }
 
@@ -27,24 +28,28 @@ const getMousePos = (canv, event) =>  {
 //endregion HELPERFUNCS
 
 //region HOSTFUNCS
-const madeGroup = (data) => {
+const madeGroup = data => {
 	console.log(data);
-	hostID = -1;
-	groupID = data.id;
+	isHost = true;
+	groupID = data.groupID;
 	group = new Group(groupID);
 	if(debug){
 		addTestPlayers();
 	}
 }
 
-const newPlayer = (data) => {
+const newPlayer = data => {
 	console.log("HEY WE GOT ANOTHER ONE");
-	console.log(data);
+	if(debug){
+		console.log(data);
+	} else {
+		console.log(data.name);
+	}
 	group.addPlayer(data.id, data.name, data.answers);
 }
 
 const advance = () => {
-	if(hostID == -1){
+	if(isHost){
 		group.stateStep();
 	}
 }
@@ -53,7 +58,7 @@ const genID = () => {
 	socket.emit("MakeAGroup");
 }
 
-const removeUser = (name) => {
+const removeUser = name => {
 	for(let user of group.players){
 		if(user.name == name){
 			socket.emit("YEET", user.id);
@@ -76,10 +81,21 @@ const snap = () => {
 //endregion HOSTFUNCS
 
 //region CLIENTFUNCS
-const addedToGroup = (data) => {
-	groupID = data.id;
-	hostID = data.hostID;
+const addedToGroup = data => {
+	console.log("YALL GOT ADDED");
+	groupID = data.groupID;
+	isHost = false;
 
+	if(ezAnswer){
+		let answerIndices = [];
+		for(let q in questions){
+			answerIndices[q] = Math.floor(random(questions[q].answers.length));
+		}
+		socket.emit("answered", {id, groupID, answers: answerIndices});
+		return;
+	}
+
+	//region ADDFORM
 	let qDiv = $("#questions")[0];
 	let form = document.createElement("form");
 	form.id = "answers";
@@ -114,6 +130,7 @@ const addedToGroup = (data) => {
 		canv.style.display = "none";
 		qDiv.appendChild(form);
 	}
+	//endregion ADDFORM
 }
 
 const getAnswers = () => {
@@ -121,24 +138,24 @@ const getAnswers = () => {
 	canv.style.display = "inline-block";
 	let form = $("#answers");
 	let answers = form.serializeArray();
-	socket.emit("answered", {id, answers: answers.map(answer => answer.value), hostID});
-	$("#questions").innerHTML = "";
+	socket.emit("answered", {id, groupID, answers: answers.map(answer => answer.value)});
+	$("#questions")[0].innerHTML = "";
 }
 
 const bindID = () =>  {
 	let form = $("#idForm").serializeArray();
 	let name = form[0].value || "Ben";
-	let hostID = form[1].value || 0;
-	socket.emit("ConnectToGroup", {id: hostID, name});
+	let groupID = form[1].value || 0;
+	socket.emit("ConnectToGroup", {groupID, name});
 	if(debug){
-		socket.emit("answered", {hostID, name, answers: [0, 0, 0, 0, 0, 0], id});
+		socket.emit("answered", {id, groupID, answers: [0, 0, 0, 0, 0, 0]});
 	}
 }
 
-const answer = (answer) => {
+const answer = answer => {
 	console.log("I ANSWERED");
 	answered = true;
-	socket.emit("AnswerQuestion", {answer, hostID});
+	socket.emit("AnswerQuestion", {answer, groupID});
 }
 //endregion CLIENTFUNCS
 
@@ -147,7 +164,7 @@ const Socket = function(socket, isTest = false){
 	this.isTestPlayer = isTest;
 
 	//region GLOBALEVENTS
-	socket.on("ID", (data) => {
+	socket.on("ID", data => {
 		id = data.id;
 	});
 	//endregion GLOBALEVENTS
@@ -155,16 +172,14 @@ const Socket = function(socket, isTest = false){
 	//region CLIENTEVENTS
 	socket.on("AddedToGroup", addedToGroup);
 
-	socket.on("AnswerThis", (data) => {
+	socket.on("AnswerThis", data => {
 		if(!this.isTestPlayer){
 			answered = false;
 			currQuestion = new Question(data.name, data.question, data.options);
-			console.log(currQuestion);
-			socket.emit("HeyAThingHappend", {hostID, id});
 		}
 	});
 
-	socket.on("UpdateButForPeasants", (data) => {
+	socket.on("UpdateButForPeasants", data => {
 		if(debug){
 			console.log("ClientUpdating");
 		}
@@ -179,11 +194,10 @@ const Socket = function(socket, isTest = false){
 
 	//region HOSTEVENTS
 	//Main update event
-	socket.on("update", data => {
+	socket.on("update", () => {
 		if(debug){
 			console.log("HostUpdating");
 		}
-		id = data.id;
 		ctxt.clearRect(0, 0, 500, 500);
 		try {
 			if(group.state != "AddingPlayers"){
@@ -199,7 +213,7 @@ const Socket = function(socket, isTest = false){
 					ctxt.fillText(p.name, 250, (+i + 1) * 50);
 				}
 			} else if(group.state == "Asking"){
-				let packet = {sendTo: group.players.map((player) => player.id)};
+				let packet = {sendTo: group.players.map(player => player.id)};
 				socket.emit("updatePlayers", packet);
 
 				ctxt.fillStyle = "#000";
@@ -222,7 +236,6 @@ const Socket = function(socket, isTest = false){
 				}
 			} else if(group.state == "Results"){
 				for(let i in answerStats){
-
 					let x = 150 + i * 50
 
 					let fillColText = "";
@@ -248,7 +261,7 @@ const Socket = function(socket, isTest = false){
 					ctxt.fillText(drawChar, x + 15, 230);
 				}
 			}
-			ctxt.fillStyle = "#FF0000";
+			ctxt.fillStyle = "#F0F";
 			ctxt.fillRect(advanceButton.pos.x, advanceButton.pos.y, advanceButton.size.x, advanceButton.size.y);
 		} catch (e) {
 			console.log(e);
@@ -266,6 +279,7 @@ const Socket = function(socket, isTest = false){
 			console.log(data);
 		}
 		usersAnswered++;
+		console.log(usersAnswered + " / " + group.players.length);
 		answerStats[data.answer]++;
 	});
 
@@ -315,7 +329,7 @@ const Group = function(id) {
 		this.players.push(new Player(id, name, answers));
 	}
 
-	this.removeUser = (id) => {
+	this.removeUser = id => {
 		for(let i in this.players){
 			if(this.players[i].id == id){
 				this.players.splice(i, 1);
@@ -461,7 +475,7 @@ for(let i = 0; i < 2; i++){
 //endregion CONSTANTS
 
 //region VARIABLES
-let id, hostID, groupID, answered, usersAnswered = 0;
+let id, groupID, answered, usersAnswered = 0, isHost = false;
 let group, currQuestion;
 let answerStats = [0, 0, 0, 0];
 //endregion VARIABLES
@@ -499,8 +513,8 @@ const addTestPlayers = () => {
 			answerIndices[q] = Math.floor(random(questions[q].answers.length));
 		}
 		let p = new Socket(io(), true);
-		p.emit("ConnectToGroup", {id: groupID, name: "user" + i});
-		p.on("ID", (data) => {
+		p.emit("ConnectToGroup", {groupID, name: "user" + i});
+		p.on("ID", data => {
 			console.log(data.id);
 			newPlayer({id: data.id, name: "user" + i, answers: answerIndices});
 		});
